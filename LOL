@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Desito 1.1</title>
+<style>
+body {margin:0; font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0b0b0b; color:white; height:100vh; display:flex; justify-content:center; align-items:center;}
+#app {width:900px; height:700px; background:#111; border-radius:20px; display:flex; overflow:hidden; box-shadow:0 0 50px rgba(0,0,0,0.7);}
+#sidebar {width:200px; background:#1a1a1a; display:flex; flex-direction:column; border-right:1px solid #333; padding:10px;}
+#sidebar button {margin-bottom:10px; padding:10px; border-radius:15px; border:none; background:#4db8ff; color:black; font-weight:bold; cursor:pointer; transition:0.2s;}
+#sidebar button:hover {background:#1aa3ff;}
+#savedChats {flex:1; overflow-y:auto;}
+.savedChatBtn {margin-bottom:6px; width:100%; padding:6px; border-radius:12px; border:none; background:#222; color:white; cursor:pointer; text-align:left;}
+.savedChatBtn:hover{background:#333;}
+#main {flex:1; display:flex; flex-direction:column;}
+#startScreen {flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center;}
+#startScreen h1 {font-size:40px; margin-bottom:15px; color:#4db8ff; text-shadow:0 0 10px #4db8ff;}
+#startBtn {padding:12px 24px; font-size:16px; border-radius:20px; border:none; cursor:pointer; background:#4db8ff; color:black; font-weight:bold;}
+#chatContainer {display:none; flex:1; flex-direction:column; height:100%;}
+#messages {flex:1; padding:15px; overflow-y:auto; background:#111; line-height:1.6;}
+.message {margin-bottom:12px; padding:12px 16px; border-radius:15px; max-width:80%; word-wrap:break-word;}
+.user-msg {background:#0077aa; align-self:flex-end; color:white;}
+.ai-msg {background:#222; border-left:4px solid #4db8ff; align-self:flex-start; color:#fff;}
+#error-msg {color:red; font-weight:bold;}
+#input-box {display:flex; padding:10px; background:#1a1a1a; border-top:1px solid #333;}
+#input {flex:1; padding:10px; border-radius:15px; border:none; outline:none; background:#222; color:white; font-size:14px;}
+#send {margin-left:8px; padding:10px 18px; border:none; border-radius:15px; background:#4db8ff; color:black; font-weight:bold; cursor:pointer; transition:0.2s;}
+#send:hover{background:#1aa3ff;}
+#messages::-webkit-scrollbar {width:10px;}
+#messages::-webkit-scrollbar-track {background:#111;}
+#messages::-webkit-scrollbar-thumb {background:#4db8ff; border-radius:5px;}
+</style>
+</head>
+<body>
+<div id="app">
+    <div id="sidebar">
+        <button id="clearChat">Очистить чат</button>
+        <div id="savedChats"></div>
+    </div>
+    <div id="main">
+        <div id="startScreen">
+            <h1>Desito 1.1</h1>
+            <button id="startBtn">Начать чат</button>
+        </div>
+        <div id="chatContainer">
+            <div id="messages"></div>
+            <div id="input-box">
+                <input id="input" placeholder="Напиши сообщение...">
+                <button id="send">→</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const answerMemory = {};
+
+// Сохранение чатов
+function loadSavedChats(){
+    const container=document.getElementById('savedChats');
+    container.innerHTML='';
+    const chats=JSON.parse(localStorage.getItem('desitoChats')||'[]');
+    chats.forEach((c,i)=>{
+        const btn=document.createElement('button');
+        btn.className='savedChatBtn';
+        btn.innerText=`Чат ${i+1}`;
+        btn.onclick=()=>loadChat(i);
+        container.appendChild(btn);
+    });
+}
+function saveChat(messages){
+    let chats=JSON.parse(localStorage.getItem('desitoChats')||'[]');
+    chats.push(messages);
+    localStorage.setItem('desitoChats',JSON.stringify(chats));
+    loadSavedChats();
+}
+function loadChat(index){
+    const chats=JSON.parse(localStorage.getItem('desitoChats')||'[]');
+    const messages=chats[index];
+    showChat();
+    const messagesContainer=document.getElementById('messages');
+    messagesContainer.innerHTML='';
+    messages.forEach(m=>{
+        addMessage(m.text,m.from,m.isError);
+    });
+}
+
+// UI
+function scrollToBottom(){
+    const box=document.getElementById("messages");
+    box.scrollTop=box.scrollHeight;
+}
+function addMessage(text,from="Desito",isError=false){
+    const box=document.getElementById("messages");
+    const msgDiv=document.createElement("div");
+    msgDiv.className='message '+(from==="Ты"?'user-msg':'ai-msg');
+    if(isError){
+        msgDiv.innerHTML=`<span id="error-msg">${text}</span>`;
+    }else{
+        msgDiv.innerHTML=`<b>${from}:</b> ${text}`;
+    }
+    box.appendChild(msgDiv);
+    scrollToBottom();
+}
+
+// Печать текста с 20 букв/сек
+async function typeText(text,from="Desito",isError=false){
+    const box=document.getElementById("messages");
+    const msgDiv=document.createElement("div");
+    msgDiv.className='message ai-msg';
+    if(isError){
+        msgDiv.innerHTML=`<span id="error-msg"></span>`;
+        box.appendChild(msgDiv);
+        const span=msgDiv.querySelector('#error-msg');
+        for(let i=0;i<text.length;i++){
+            span.innerHTML+=text[i];
+            await new Promise(r=>setTimeout(r,50));
+            scrollToBottom();
+        }
+    }else{
+        msgDiv.innerHTML=`<b>${from}:</b> <span></span>`;
+        box.appendChild(msgDiv);
+        const span=msgDiv.querySelector('span');
+        for(let i=0;i<text.length;i++){
+            span.innerHTML+=text[i];
+            await new Promise(r=>setTimeout(r,50));
+            scrollToBottom();
+        }
+    }
+}
+
+// Думает
+async function thinkingAnimation(){
+    const box=document.getElementById("messages");
+    const msgDiv=document.createElement("div");
+    msgDiv.className='message ai-msg';
+    msgDiv.innerHTML="<i>Думаю...</i>";
+    box.appendChild(msgDiv);
+    box.scrollTop=box.scrollHeight;
+    let dots=["Думаю.","Думаю..","Думаю..."];
+    for(let i=0;i<5;i++){
+        msgDiv.innerHTML=`<i>${dots[i%3]}</i>`;
+        await new Promise(r=>setTimeout(r,300));
+    }
+    box.removeChild(msgDiv);
+}
+
+// Определение языка
+function detectLanguage(msg){
+    const ua=/[іїєґ]/i;
+    return ua.test(msg)?"uk":"ru";
+}
+
+// Решение текстовой задачи с кратким записом
+function solveWordProblemShortRecord(msg){
+    const numbers = msg.match(/\d+/g);
+    if(numbers && numbers.length>=2){
+        const a=parseInt(numbers[0]);
+        const b=parseInt(numbers[1]);
+        const result = a-b;
+        if(!isNaN(result)){
+            return `Краткий запис:
+Яблок - ${a}
+Съела - ${b}
+Осталось - ?
+
+Действия:
+${a} - ${b} = ${result}
+
+Ответ:
+${result} яблока`;
+        }
+    }
+    return null;
+}
+
+// AI логика
+async function AI(msg){
+    const lang = detectLanguage(msg);
+    await thinkingAnimation();
+    const lower = msg.toLowerCase().trim();
+
+    if(answerMemory[lower]) return await typeText(answerMemory[lower]);
+
+    const hi = ["привет","ку","дарова","здарова","хай","вітаю","добрий день"];
+    const bye = ["пока","бб","бай","аривидерчи","до свидания","до зустрічі"];
+    if(hi.some(w=>lower.includes(w))) return answerMemory[lower]=await typeText(lang==="ru"?"Привет! Рад с тобой пообщаться 😊":"Вітаю! Радий поспілкуватися 😎");
+    if(bye.some(w=>lower.includes(w))) return answerMemory[lower]=await typeText(lang==="ru"?"Пока!":"До зустрічі!");
+
+    // Чистая математика
+    let expr = lower.replace(/\s+/g,"").replace(/\^/g,"**");
+    if(/^[0-9+\-*/().]+$/.test(expr)){
+        try{
+            const result = Function("return "+expr)();
+            if(!isNaN(result)) return answerMemory[lower]=await typeText((lang==="ru"?"Посчитал: ":"Порахував: ")+result+" ✅");
+        }catch(e){}
+    }
+
+    // Текстовая задача
+    const wordResult = solveWordProblemShortRecord(lower);
+    if(wordResult!==null) return answerMemory[lower]=await typeText(wordResult);
+
+    // Примеры кода
+    if(lower.includes("lua") && lower.includes("лидерстатс")){
+        const example = (lang==="ru")?`Вот пример лидерстатса на Lua:\n
+local player = game.Players.LocalPlayer
+local leaderstats = Instance.new("Folder")
+leaderstats.Name = "leaderstats"
+leaderstats.Parent = player
+
+local Coins = Instance.new("IntValue")
+Coins.Name = "Coins"
+Coins.Value = 0
+Coins.Parent = leaderstats`:
+        `Ось приклад лідерстатса на Lua:\n
+local player = game.Players.LocalPlayer
+local leaderstats = Instance.new("Folder")
+leaderstats.Name = "leaderstats"
+leaderstats.Parent = player
+
+local Coins = Instance.new("IntValue")
+Coins.Name = "Coins"
+Coins.Value = 0
+Coins.Parent = leaderstats`;
+        return answerMemory[lower]=await typeText(example);
+    }
+
+    // Умные ответы
+    const answersRU=["Хорошо, а у тебя как?","Интересно, расскажи подробнее.","Я понял, давай разберём шаги.","С этим можно справиться легко."];
+    const answersUK=["Добре, а у тебе як?","Цікаво, розкажи більше.","Я зрозумів, давай розберемо кроки.","З цим можна впоратися легко."];
+    const chosen = (lang==="ru")?answersRU[0]:answersUK[0];
+    return answerMemory[lower]=await typeText(chosen);
+}
+
+// Новый чат
+function showChat(){
+    document.getElementById('startScreen').style.display='none';
+    document.getElementById('chatContainer').style.display='flex';
+}
+
+document.getElementById('startBtn').onclick=()=>{
+    showChat();
+    loadSavedChats();
+};
+document.getElementById('clearChat').onclick=()=>{ 
+    document.getElementById('messages').innerHTML='';
+};
+document.getElementById('send').onclick=async ()=>{
+    const input=document.getElementById('input');
+    const txt=input.value.trim();
+    if(!txt) return;
+    addMessage(txt,"Ты");
+    input.value='';
+    await AI(txt);
+};
+document.getElementById('input').addEventListener("keydown",e=>{
+    if(e.key==="Enter") document.getElementById('send').click();
+});
+
+loadSavedChats();
+</script>
+</body>
+</html>
